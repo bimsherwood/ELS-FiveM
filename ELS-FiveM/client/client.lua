@@ -30,6 +30,39 @@ curCleanupTime = 0
 
 local networkSessionActive = true
 
+--
+-- This thread takes control of the keybaord or controller, and translates button presses into server triggers instead.
+--
+-- Firstly, trigger the "els:requestVehiclesUpdate" event
+-- Forever: If the ELS is active and controllable:
+--
+--   if the vehicle class is 18 "Emergency", disable the horn
+--   Disable the radio controls
+--   Turn the radio off and disable the radio
+--
+--   if the control system in use is 0 (Keyboard?) then
+--      Disable the keyboard controls
+--      Check for "stage change" key presses and call the appropriate functions: downOneStage, upOneStage
+--      Check for recent key presses, maybe play the relevant sounds, and trigger the appropriate events:
+--          els:setSceneLightState_s
+--          setTakedownState_s
+--          els:setCruiseLights_s warning true/false
+--          els:changePartState_s secondary true/false
+--          els:changePartState_s primary true/false
+--          els:setSirenState_s
+--
+--   if the control system in use is NOT 0 (Controller?) then
+--      Disable the controller controls
+--      Check for "stage change" key presses and call the appropriate functions: downOneStage, upOneStage
+--      Check for recent key presses, maybe play the relevant sounds, and trigger the appropriate events:
+--          setTakedownState_s
+--          els:setSirenState_s
+--
+--   if the vehicle class is 18 "Emergency" and the user tried to press the disabled horn:
+--      Trigger "els:setHornState_s" 1
+--   if the vehicle class is 18 "Emergency" and the user tried to UNPRESS the disabled horn:
+--      Trigger "els:setHornState_s" 0
+--
 Citizen.CreateThread(function()
 
     TriggerServerEvent("els:requestVehiclesUpdate")
@@ -336,6 +369,11 @@ Citizen.CreateThread(function()
     end
 end)
 
+-- Forever: If the  Vehicle is ELS and ELS can be controlled:
+--   Check if the modifyKey + primary, modifyKey + secondary, or modifyKey + advisor disabled controls are pressed.
+--   If they are, maybe play the relevant sound, and call changePrimaryPatternMath(-1), changeSecondaryPatternMath(-1), or changeAdvisorPatternMath(-1).
+--   Check if the primary, secondary, or advisor disabled controls are pressed.
+--   If they are, maybe play the relevant sound, and call changePrimaryPatternMath(1), changeSecondaryPatternMath(1), or changeAdvisorPatternMath(1).
 Citizen.CreateThread(function()
     while true do
         if isVehicleELS and canControlELS then
@@ -384,12 +422,14 @@ Citizen.CreateThread(function()
     end
 end)
 
+-- A command to toggle periodic dumps of the elsVehs and els_vehicles into the log
 local log = false
 RegisterCommand('tlog', function()
     log = not log
     if log then print('now logging stuff') end
 end)
 
+-- Dumps elsVehs and els_vehicles into the log
 CreateThread(function()
     while true do Wait(500)
         if log then
@@ -399,6 +439,12 @@ CreateThread(function()
     end
 end)
 
+-- This thread draws some frontend controls based on:
+--   panelOffsetX
+--   panelOffsetY
+--   panelEnabled
+--   isVehicleELS
+--   canControlELS
 local allowedPanel = false
 local panelTypeChecked = false
 panelTypeChanged = false
@@ -810,6 +856,10 @@ Citizen.CreateThread(function()
     end
 end)
 
+-- This thread monitors the list of elsVehs, and finds any of them which are close to the player. For each:
+--   if the vehicle is flagged warning, secondary, or primary, then turn the vehicle on instantly, and allow auto-start
+--   For vehicle extras 11 and 12 (Not sure about what these are, probably emergency lights):
+--     if the extra is turned on, draw a light (extra 12) or spotlight (extra 11) at the position of the extra
 Citizen.CreateThread(function()
     while true do
         for k,v in pairs(elsVehs) do
@@ -858,8 +908,16 @@ Citizen.CreateThread(function()
     end
 end)
 
-
-
+-- This thread monitors the list of elsVehs, and finds any of them which are close to the player. For each:
+--   Disable auto-repair on the vehicle
+--   Check the els_Vehicles table (by way of getVehicleVCFInfo from utils.lua)
+--   Do the appropriate thing based on the state of the vehicle:
+--     setExtraState(,,1)
+--     runCHPPattern
+--     runLedPatternWarning
+--     runLedPatternSecondary
+--     runTrafPattern
+--     runLedPatternPrimary
 Citizen.CreateThread(function()
     while true do
         for k,v in pairs(elsVehs) do

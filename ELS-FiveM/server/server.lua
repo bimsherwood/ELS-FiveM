@@ -24,6 +24,7 @@ local curVerCol = function(nextVer)
 end
 local warnOnJoin = function() return GetConvar("els_warnOnJoin", "true") == "true" end
 
+-- A function to check the version of the resource that prints a warning message if the version is not the latest.
 function checkVersion()
 	PerformHttpRequest(latestVersionPath, function(err, response, headers)
 		if err or not response then return end
@@ -59,6 +60,7 @@ function checkVersion()
 	end, "GET", "", { version = "this" })
 end
 
+-- A thread that checks the version hourly.
 Citizen.CreateThread(function()
     while true do
         checkVersion()
@@ -66,6 +68,7 @@ Citizen.CreateThread(function()
     end
 end)
 
+-- A console command set for the resource
 RegisterCommand('els', function(source, args)
     local function notify(plr, text)
         assert(type(plr) == "number", "Expected type 'number' for parameter #1 in 'notify'.")
@@ -119,6 +122,7 @@ RegisterCommand('els', function(source, args)
     end
 end)
 
+-- This handler warns the client console when the version is not the latest as the client joins
 RegisterNetEvent("els:playerSpawned")
 AddEventHandler("els:playerSpawned", function()
     if not warnOnJoin() then return end
@@ -132,6 +136,7 @@ AddEventHandler("els:playerSpawned", function()
     end
 end)
 
+-- Deserialises XML 
 local function processXml(el)
     local v = {}
     local text
@@ -157,6 +162,7 @@ local function processXml(el)
     return v
 end
 
+-- Deserialise the VehData XML file
 function parseVehData(xml, fileName)
 
     local a = {}
@@ -494,6 +500,7 @@ function parseVehData(xml, fileName)
     end
 end
 
+-- Deserialise the PatternData XML file
 function parsePatternData(xml, fileName)
 
     local primary = {}
@@ -769,6 +776,7 @@ function configCheck()
     end
 end
 
+-- Server-side entry point
 AddEventHandler('onResourceStart', function(name)
     if name:lower() == GetCurrentResourceName():lower() then
         patternInfoTable.primarys = {}
@@ -806,12 +814,28 @@ AddEventHandler('onResourceStart', function(name)
     end
 end)
 
+-- Reply to this trigger with the vehicleInfoTable and patternInfoTable
 RegisterNetEvent("els:requestVehiclesUpdate")
 AddEventHandler('els:requestVehiclesUpdate', function()
     debugPrint("Sending player (" .. source .. ") ELS data")
 
     TriggerClientEvent("els:updateElsVehicles", source, vehicleInfoTable, patternInfoTable)
 end)
+
+-- Broadcast the following server events to all clients:
+--   els:changeLightStage_s -> els:changeLightStage_c
+--   els:changePartState_s -> els:changeLightStage_c
+--   els:changeAdvisorPattern_s -> els:changeAdvisorPattern_c
+--   els:changeSecondaryPattern_s -> els:changeSecondaryPattern_c
+--   els:changePrimaryPattern_s -> els:changePrimaryPattern_c
+--   els:toggleDfltSirenMute_s -> els:toggleDfltSirenMute_s
+--   els:setSirenState_s -> els:setSirenState_c
+--   els:setDualSirenState_s -> els:setDualSirenState_c
+--   els:setDualSiren_s -> els:setDualSiren_c
+--   els:setHornState_s -> els:setHornState_c
+--   els:setTakedownState_s -> els:setTakedownState_c
+--   els:setSceneLightState_s -> els:setSceneLightState_c
+--   els:setCruiseLights_s -> els:setCruiseLights_c
 
 RegisterNetEvent("els:changeLightStage_s")
 AddEventHandler("els:changeLightStage_s", function(state, advisor, prim, sec)
@@ -878,6 +902,7 @@ AddEventHandler("els:setCruiseLights_s", function(state)
     TriggerClientEvent("els:setCruiseLights_c", -1, source)
 end)
 
+-- Report errors from the els:catchError event to the server log.
 RegisterNetEvent("els:catchError")
 AddEventHandler("els:catchError", function(data, vehicle)
     local player = source
